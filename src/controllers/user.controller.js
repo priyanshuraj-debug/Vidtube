@@ -4,7 +4,9 @@ import { User } from "../models/user.model.js"
 import { uploadOnCloudinary } from "../utils/cloudinary.js"
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken"
-import mongoose from "mongoose";
+import mongoose, { isValidObjectId } from "mongoose";
+import { v2 as cloudinary } from "cloudinary";
+
 
 
 const generateAccessAndRefereshTokens = async (userId) => {
@@ -336,7 +338,7 @@ const updateUserCoverImage = asyncHandler(async (req, res) => {
     if(!currentUser){
         throw new ApiError(400,"User not found")
     }
-    const oldCoverImageId = currentUser.coverImage?.coverImageid;
+    const oldCoverImageId = currentUser.coverImage?.coverImageId;
 
     const coverImage = await uploadOnCloudinary(coverImageLocalPath)
 
@@ -496,7 +498,31 @@ const getWatchHistory = asyncHandler(async (req, res) => {
             )
         )
 })
+const deleteUser=  asyncHandler(async(req,res)=>{
 
+    const{userId}=req.params
+    if(!userId||!isValidObjectId(userId)){
+        throw new ApiError(400,"UserId not found")
+    }
+    const user = await User.findById(userId)
+    if (!user) {
+  throw new ApiError(404, "User not found");
+}
+
+    if(user._id.toString()!==req.user._id.toString()){
+        throw new ApiError(400,"You are not authorised to deleted this account")
+    }
+    const avatarId= user.avatar.avatarId
+    const coverImageId=user.coverImage?.coverImageId
+    if(avatarId){
+        await cloudinary.uploader.destroy(avatarId)
+    }
+    if(coverImageId){
+        await cloudinary.uploader.destroy(coverImageId)
+    }
+const deleteAccount= await User.findByIdAndDelete(userId)
+return res.status(200).json(new ApiResponse(200,null,"User Successfully deleted"))
+})
 
 export {
     registerUser,
@@ -509,5 +535,6 @@ export {
     updateUserAvatar,
     updateUserCoverImage,
     getUserChannelProfile,
-    getWatchHistory
+    getWatchHistory,
+    deleteUser
 }

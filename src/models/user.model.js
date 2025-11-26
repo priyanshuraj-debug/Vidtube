@@ -40,7 +40,7 @@ const userSchema = new Schema(
         type: String,
         
         },
-        coverImageid: {
+        coverImageId: {
         type: String,
       
         }},
