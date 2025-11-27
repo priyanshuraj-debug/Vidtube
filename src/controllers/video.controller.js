@@ -88,8 +88,7 @@ const togglePublishStatus = asyncHandler(async (req, res) => {
       200,
       { isPublished: video.isPublished },
       "Video publish status toggled successfully"
-    )
-  );
+    ))
 })
 
 export {
