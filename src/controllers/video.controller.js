@@ -8,9 +8,43 @@ import {uploadOnCloudinary} from "../utils/cloudinary.js"
 import { v2 as cloudinary } from "cloudinary";
 
 const getAllVideos = asyncHandler(async (req, res) => {
-    const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query
-    //TODO: get all videos based on query, sort, pagination
-})
+  const { page = 1, limit = 10, query = "", sortBy = "createdAt", sortType = "Ascending", userId } = req.query;
+
+  const skip = (page - 1) * limit;
+
+  const sortOrder =
+    sortType.toLowerCase() === "ascending" ? 1 :
+    sortType.toLowerCase() === "descending" ? -1 :
+    null;
+
+  if (sortOrder === null) {
+    throw new ApiError(400, "Mention Sort Type properly");
+  }
+
+  const matchStage = {};
+
+  // Only apply search if query is not empty (after trimming)
+  if (query && query.trim() !== "") {
+    matchStage.title = { $regex: query, $options: "i" };
+  }
+
+  // Filter by userId if provided
+  if (userId) {
+    matchStage.owner = userId;
+  }
+
+  const videos = await Video.aggregate([
+    { $match: matchStage },
+    { $sort: { [sortBy]: sortOrder } },
+    { $skip: skip },
+    { $limit: parseInt(limit) }
+  ]);
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, videos, "Videos fetched successfully"));
+});
+
 
 const publishAVideo = asyncHandler(async (req, res) => {
     const { title, description} = req.body
@@ -70,10 +104,64 @@ const getVideoById = asyncHandler(async (req, res) => {
 })
 
 const updateVideo = asyncHandler(async (req, res) => {
-    const { videoId } = req.params
-    //TODO: update video details like title, description, thumbnail
+    const { videoId } = req.params;
+    const { title, description } = req.body;
 
-})
+    const oldVideo = await Video.findById(videoId);
+    if (!oldVideo) {
+        throw new ApiError(400, "Old video not found");
+    }
+
+    if (oldVideo.owner.toString() !== req.user._id.toString()) {
+        throw new ApiError(402, "You are not authorised to update this video");
+    }
+
+    if (title !== undefined && title.trim() === "") {
+        throw new ApiError(400, "Title cannot be empty");
+    }
+
+    if (description !== undefined && description.trim() === "") {
+        throw new ApiError(400, "Description cannot be empty");
+    }
+
+    const oldThumbnailId = oldVideo.thumbnail.thumbnailId;
+
+    const newThumbnailLocalPath = req.files?.thumbnail?.[0]?.path;
+    if (!newThumbnailLocalPath) {
+        throw new ApiError(400, "Thumbnail path is required");
+    }
+
+    const newThumbnail = await uploadOnCloudinary(newThumbnailLocalPath);
+    if (!newThumbnail) {
+        throw new ApiError(400, "Thumbnail upload failed");
+    }
+
+    const updatedVideo = await Video.findByIdAndUpdate(
+        videoId,
+        {
+            $set: {
+                title: title || oldVideo.title,
+                description: description || oldVideo.description,
+                thumbnail: {
+                    url: newThumbnail.url,
+                    thumbnailId: newThumbnail.public_id
+                }
+            }
+        },
+        { new: true }
+    );
+
+    if (oldThumbnailId) {
+        await cloudinary.uploader.destroy(oldThumbnailId);
+    }
+
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(200, updatedVideo, "Video update successfully")
+        );
+});
+
 
 const deleteVideo = asyncHandler(async (req, res) => {
     const { videoId } = req.params
