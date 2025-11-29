@@ -36,7 +36,7 @@ const getUserTweets = asyncHandler(async (req, res) => {
             $sort: { createdAt: -1 } // latest first
         }
     ])
-    console.log(userTweet);
+    
     
     return res.status(200).json(new ApiResponse(201,userTweet,"user tweet fetched successsfully"))
 })
