@@ -43,10 +43,44 @@ const getUserTweets = asyncHandler(async (req, res) => {
 
 const updateTweet = asyncHandler(async (req, res) => {
     //TODO: update tweet
+    const {tweetId}=req.params
+    if(!tweetId||!isValidObjectId(tweetId)){
+        throw new ApiError(400,"invalid tweet")
+    }
+    const {content}=req.body
+    if(!content || !content.toString().trim()){
+        throw new ApiError(400,"content is required")
+    }
+    const oldTweet= await Tweet.findById(tweetId)
+    if(!oldTweet){
+        throw new ApiError(404,"Tweet not found")
+    }
+    if(oldTweet.owner.toString()!==req.user._id.toString()){
+        throw new ApiError(400,"You are not authorised to edit this tweet")
+    }
+    const updatedTweet=await Tweet.findByIdAndUpdate(tweetId,{
+        $set:{
+            content:content.trim(),
+        }
+    },{new:true})
+    return res.status(200).json(new ApiResponse(200,updatedTweet,"tweet updated successfully"))
 })
 
 const deleteTweet = asyncHandler(async (req, res) => {
     //TODO: delete tweet
+    const {tweetId}=req.params
+    if(!tweetId||!isValidObjectId(tweetId)){
+        throw new ApiError(400,"invalid tweet")
+    }
+    const oldTweet= await Tweet.findById(tweetId)
+    if(!oldTweet){
+        throw new ApiError(404,"Tweet not found")
+    }
+    if(oldTweet.owner.toString()!==req.user._id.toString()){
+        throw new ApiError(403,"You are not authorised to edit this tweet")
+    }
+    await Tweet.findByIdAndDelete(tweetId)
+      return res.status(200).json(new ApiResponse(200,null,"tweet deleted successfully"))
 })
 
 export {
