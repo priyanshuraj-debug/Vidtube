@@ -6,11 +6,52 @@ import {asyncHandler} from "../utils/asyncHandler.js"
 import {Video} from "../models/video.model.js"
 
 const getVideoComments = asyncHandler(async (req, res) => {
-    //TODO: get all comments for a video
-    const {videoId} = req.params
-    const {page = 1, limit = 10} = req.query
+    const { videoId } = req.params;
+    const { 
+        page = 1, 
+        limit = 10, 
+        sortBy = "createdAt", 
+        sortType = "ascending",
+        userId
+    } = req.query;
 
-})
+    if (!videoId || !isValidObjectId(videoId)) {
+        throw new ApiError(400, "Invalid videoId");
+    }
+
+    const skip = (page - 1) * limit;
+
+    const sortOrder =
+        sortType.toLowerCase() === "ascending" ? 1 :
+        sortType.toLowerCase() === "descending" ? -1 :
+        null;
+
+    if (sortOrder === null) {
+        throw new ApiError(400, "Sort type must be 'ascending' or 'descending'");
+    }
+
+    // Always match by videoId
+    const matchStage = {
+        video: new mongoose.Types.ObjectId(videoId)
+    };
+
+    // Optional: filter by userId (if provided)
+    if (userId && isValidObjectId(userId)) {
+        matchStage.owner = new mongoose.Types.ObjectId(userId);
+    }
+
+    const allComments = await Comment.aggregate([
+        { $match: matchStage },
+        { $sort: { [sortBy]: sortOrder } },
+        { $skip: skip },
+        { $limit: parseInt(limit) }
+    ]);
+
+    return res
+        .status(200)
+        .json(new ApiResponse(200, allComments, "Comments fetched successfully"));
+});
+
 
 const addComment = asyncHandler(async (req, res) => {
     // TODO: add a comment to a video
