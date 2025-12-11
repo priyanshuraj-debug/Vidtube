@@ -21,4 +21,10 @@ const likeSchema = new Schema({
     
 }, {timestamps: true})
 
+likeSchema.index({ likedBy: 1, comment: 1 }, { unique: true });
+
+likeSchema.index({ likedBy: 1, video: 1 }, { unique: true });
+
+likeSchema.index({ likedBy: 1, tweet: 1 }, { unique: true });
+
 export const Like = mongoose.model("Like", likeSchema)
