@@ -27,80 +27,62 @@ const generateAccessAndRefereshTokens = async (userId) => {
 }
 
 const registerUser = asyncHandler(async (req, res) => {
+  const { fullName, email, username, password } = req.body
 
+  if ([fullName, email, username, password].some(f => !f?.trim())) {
+    throw new ApiError(400, "All fields are required")
+  }
 
+  const existedUser = await User.findOne({
+    $or: [{ username }, { email }]
+  })
 
-    const { fullName, email, username, password } = req.body
-    //console.log("email: ", email);
+  if (existedUser) {
+    throw new ApiError(409, "User already exists")
+  }
 
-    if (
-        [fullName, email, username, password].some((field) => field?.trim() === "")
-    ) {
-        throw new ApiError(400, "All fields are required")
+  const avatarLocalPath = req.files?.avatar?.[0]?.path
+  if (!avatarLocalPath) {
+    throw new ApiError(400, "Avatar file is required")
+  }
+
+  const avatar = await uploadOnCloudinary(avatarLocalPath)
+
+  const user = await User.create({
+    fullName,
+    email,
+    password,
+    username: username.toLowerCase(),
+    avatar: {
+      url: avatar.url,
+      avatarId: avatar.public_id
     }
+  })
 
-    const existedUser = await User.findOne({
-        $or: [{ username }, { email }]
+  // 🔥 AUTO LOGIN HAPPENS HERE
+  const { accessToken, refreshToken } =
+    await generateAccessAndRefereshTokens(user._id)
+
+  const createdUser = await User.findById(user._id)
+    .select("-password -refreshToken")
+
+  return res
+    .status(201)
+    .cookie("accessToken", accessToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
     })
-
-    if (existedUser) {
-        throw new ApiError(409, "User with email or username already exists")
-    }
-    //console.log(req.files);
-
-    const avatarLocalPath = req.files?.avatar[0]?.path;
-    //const coverImageLocalPath = req.files?.coverImage[0]?.path;
-
-    let coverImageLocalPath;
-    if (req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0) {
-        coverImageLocalPath = req.files.coverImage[0].path
-    }
-
-
-    if (!avatarLocalPath) {
-        throw new ApiError(400, "Avatar file is required")
-    }
-
-    const avatar = await uploadOnCloudinary(avatarLocalPath)
-    const coverImage = await uploadOnCloudinary(coverImageLocalPath)
-
-    if (!avatar) {
-        throw new ApiError(400, "Avatar file is required")
-    }
-
-
-    const user = await User.create({
-        fullName,
-        avatar: {
-            url: avatar.url,
-            avatarId: avatar.public_id
-        },
-        coverImage: coverImage
-            ? {
-                url: coverImage.url,
-                coverImageId: coverImage.public_id,
-            }
-            : null,
-
-        email,
-        password,
-        username: username.toLowerCase()
+    .cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
     })
-
-    const createdUser = await User.findById(user._id).select(
-        "-password -refreshToken"
-    )
-
-    if (!createdUser) {
-        throw new ApiError(500, "Something went wrong while registering the user")
-    }
-
-    return res.status(201)
     .json(
-        new ApiResponse(200, createdUser, "User registered Successfully")
+      new ApiResponse(200, createdUser, "User registered & logged in")
     )
-
 })
+
 
 const loginUser = asyncHandler(async (req, res) => {
 
