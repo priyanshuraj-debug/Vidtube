@@ -120,7 +120,7 @@ const loginUser = asyncHandler(async (req, res) => {
 
     const options = {
         httpOnly: true,
-        secure: false,
+        secure: true,
         sameSite:"none"
     }
 
@@ -132,7 +132,7 @@ const loginUser = asyncHandler(async (req, res) => {
             new ApiResponse(
                 200,
                 {
-                    user: loggedInUser, accessToken, refreshToken
+                    user: loggedInUser
                 },
                 "User logged In Successfully"
             )
